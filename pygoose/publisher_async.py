@@ -1,10 +1,11 @@
 import asyncio
+import decimal as dec
 import pathlib
 import socket
 from struct import pack as s_pack, unpack as s_unpack
 import sys
 from contextlib import suppress
-from typing import TYPE_CHECKING
+from typing import NamedTuple, TYPE_CHECKING
 from itertools import count
 import datetime as dt
 from time import time_ns
@@ -35,29 +36,91 @@ def triplet(identifier: bytes, value: bytes) -> bytes:
         return identifier + s_pack('!B', 0x83) + s_pack('!I', length)[1:] + value
     raise ValueError('Value too big')
 
-def count_fraction(fraction):
-    acc = 0
-    for i, bi in enumerate(fraction):
-        acc += int(bi) * (2 ** (-(i+1)))
-    return acc
 
-def timestamp():
-    now = str(time_ns())
-    epoch = int(now[:-9])
-    fraction = f'{int(now[-9:][:-1]):024b}'
-    # TODO calc 0.fraction, not fraction
-    acc = count_fraction(fraction)
-    print(int(fraction, 2), acc)
-    # Value = SUM from i=0 to 23 of bi*2**–(i+1); Order = b0, b1, b2, b3, ...
+class TimeQuality(NamedTuple):
+    # TODO Change to pydantic.BaseModel?
+    leap_second_know: bool
+    clock_failure: bool
+    clock_not_sync: bool
+    accuracy: int  # TODO What's the relationship between fraction and accuracy
+
+    @classmethod
+    def unpack(cls, bytes_string) -> "TimeQuality":
+        i_quality = s_unpack('!B', bytes_string)[0]
+        b_quality = f'{i_quality:08b}'
+
+        return cls(
+            leap_second_know=b_quality[0] == '1',
+            clock_failure=b_quality[1] == '1',
+            clock_not_sync=b_quality[2] == '1',
+            accuracy=int(b_quality[3:], 2)
+        )
+
+    def __bytes__(self) -> bytes:
+        leap = '1' if self.leap_second_know else '0'
+        failure = '1' if self.clock_failure else '0'
+        sync = '1' if self.clock_not_sync else '0'
+        accuracy = f'{self.accuracy:05b}'
+        return s_pack('!B', int(leap + failure + sync + accuracy, 2))
 
 
-def unpack_t(value=b"\x63\x5a\xe0\xa0\xf5\x8e\x21\x92"):
-    epoch = dt.datetime.fromtimestamp(s_unpack('!L', value[:4])[0])
-    fraction = s_unpack('!L', b"\x00" + value[4:7])[0]
-    b_fraction = f'{fraction:024b}'
-    new_fraction = f'{count_fraction(b_fraction):.9f}'
-    print(f"{epoch}.{new_fraction[2:]}")
-    # TODO unpack TimeQuality (61850-7-2)
+class Timestamp(NamedTuple):
+    second_since_epoch: int
+    fraction_of_second: int  # nanoseconds
+    time_quality: "TimeQuality"
+
+
+    @staticmethod
+    def bin2nano(bin_fraction: str) -> int:
+        """Returns the sum from the binary bin_fraction in nanoseconds."""
+        acc = dec.Decimal()
+        for i, bi in enumerate(bin_fraction):
+            acc += (bi == '1') * (dec.Decimal(2 ** (-(i + 1))))
+        return int(acc * dec.Decimal(1E9))
+
+    @classmethod
+    def int2nano(cls, fraction: int) -> int:
+        """Returns the parsed representation for the fraction in nanoseconds."""
+        list_fraction = []
+        acc = dec.Decimal()
+        d_fraction = fraction * 1E-9
+        for i in range(24):
+            temp = acc + dec.Decimal(2 ** (- (i + 1)))
+            if temp > d_fraction:
+                list_fraction.append('0')
+            else:
+                list_fraction.append('1')
+                acc = temp
+        return cls.bin2nano(''.join(list_fraction))
+
+    def datetime(self) -> dt.datetime:
+        return dt.datetime.fromtimestamp(self.second_since_epoch) + \
+               dt.timedelta(microseconds=self.fraction_of_second / 1E3)
+
+    @classmethod
+    def unpack(cls, bytes_string: bytes) -> "Timestamp":
+        """Returns the timestamp unpacked from bytes."""
+        # IEC 61850 7-2
+        epoch_s = s_unpack('!L', bytes_string[:4])[0]
+        i_fraction = s_unpack('!L', b"\x00" + bytes_string[4:7])[0]
+        b_fraction = f'{i_fraction:024b}'
+        fraction_ns = cls.bin2nano(b_fraction)
+
+        quality = TimeQuality.unpack(bytes_string[7:])
+        return cls(second_since_epoch=epoch_s, fraction_of_second=fraction_ns, time_quality=quality)
+
+    def __bytes__(self) -> bytes:
+        epoch = s_pack('!L', self.second_since_epoch)
+        fraction = s_pack('!L', self.int2nano(self.fraction_of_second))
+        quality = bytes(self.time_quality)
+        return epoch + fraction + quality
+
+
+def new_datetime(quality: TimeQuality) -> bytes:
+    now = dec.Decimal(time_ns()) * dec.Decimal(1E-9)
+    epoch = int(now)
+    fraction = int((now % 1) * int(1E9))
+    return bytes(Timestamp(second_since_epoch=epoch, fraction_of_second=fraction, time_quality=quality))
 
 
 def get_goose() -> "Iterator[bytes]":
@@ -82,16 +145,14 @@ def get_goose() -> "Iterator[bytes]":
     conf_rev = triplet(b"\x88", b"\x01")
     test = triplet(b"\x87", b"\x00")
 
-    sq_num = b"\x86\x01\x01"
-    st_num = b"\x85\x01\x01"
-    t = b"\x84\x08\x63\x5a\xe0\xa0\xf5\x8e\x21\x92"
+    sq_num = triplet(b"\x86", b"\x01")  # changes to 0
+    st_num = triplet(b"\x85", b"\x01")
 
-    goose = dst_addr + src_addr + goose_ether + app_id + length + reserved + goose_type + goose_len + gocb_ref + time_allowed_to_live + dat_set + go_id + t + st_num + sq_num + test + conf_rev + nds_com + num_dat_set_entries + data
-    print(len(goose))
-    # sq_num = 1
-    # st_num = 1
-    # t = 0
-    for _ in range(10):
+    quality = TimeQuality(leap_second_know=True, clock_failure=False, clock_not_sync=False, accuracy=18)
+    t = new_datetime(quality)
+
+    for index in range(10):
+        goose = dst_addr + src_addr + goose_ether + app_id + length + reserved + goose_type + goose_len + gocb_ref + time_allowed_to_live + dat_set + go_id + t + st_num + sq_num + test + conf_rev + nds_com + num_dat_set_entries + data
         yield goose
 
 
