@@ -1,180 +1,112 @@
 import asyncio
 import decimal as dec
-import pathlib
 import socket
-from struct import pack as s_pack, unpack as s_unpack
-import sys
 from contextlib import suppress
-from typing import NamedTuple, TYPE_CHECKING
-from itertools import count
-import datetime as dt
+from struct import pack as s_pack
 from time import time_ns
+from typing import TYPE_CHECKING
+
+from pygoose.asn1 import Triplet
+from pygoose.data_types import TimeQuality, Timestamp, ether2bytes, mac2bytes, u32_bytes
 
 if TYPE_CHECKING:
     from asyncio import AbstractEventLoop
-    from typing import Iterator, Sequence
 
 
-def get_sample() -> "Iterator[Sequence[str]]":
-    path = pathlib.Path("data") / "example1.csv"
-    with open(path, "r") as csv:
-        csv.readline()
-        for _ in range(2400):
-            data = csv.readline()
-            yield data.strip().split(",")
-
-
-def triplet(identifier: bytes, value: bytes) -> bytes:
-    length = len(value)
-    if length < 0x80:
-        return identifier + s_pack('!B', length) + value
-    elif length <= 0xFF:
-        return identifier + s_pack('!BB', 0x81, length) + value
-    elif length <= 0xFFFF:
-        return identifier + s_pack('!BH', 0x82, length) + value
-    elif length <= 0xFFFFFF:
-        return identifier + s_pack('!B', 0x83) + s_pack('!I', length)[1:] + value
-    raise ValueError('Value too big')
-
-
-class TimeQuality(NamedTuple):
-    # TODO Change to pydantic.BaseModel?
-    leap_second_know: bool
-    clock_failure: bool
-    clock_not_sync: bool
-    accuracy: int  # TODO What's the relationship between fraction and accuracy
-
-    @classmethod
-    def unpack(cls, bytes_string) -> "TimeQuality":
-        i_quality = s_unpack('!B', bytes_string)[0]
-        b_quality = f'{i_quality:08b}'
-
-        return cls(
-            leap_second_know=b_quality[0] == '1',
-            clock_failure=b_quality[1] == '1',
-            clock_not_sync=b_quality[2] == '1',
-            accuracy=int(b_quality[3:], 2)
-        )
-
-    def __bytes__(self) -> bytes:
-        leap = '1' if self.leap_second_know else '0'
-        failure = '1' if self.clock_failure else '0'
-        sync = '1' if self.clock_not_sync else '0'
-        accuracy = f'{self.accuracy:05b}'
-        return s_pack('!B', int(leap + failure + sync + accuracy, 2))
-
-
-class Timestamp(NamedTuple):
-    second_since_epoch: int
-    fraction_of_second: int  # nanoseconds
-    time_quality: "TimeQuality"
-
-
-    @staticmethod
-    def bin2nano(bin_fraction: str) -> int:
-        """Returns the sum from the binary bin_fraction in nanoseconds."""
-        acc = dec.Decimal()
-        for i, bi in enumerate(bin_fraction):
-            acc += (bi == '1') * (dec.Decimal(2 ** (-(i + 1))))
-        return int(acc * dec.Decimal(1E9))
-
-    @classmethod
-    def int2nano(cls, fraction: int) -> int:
-        """Returns the parsed representation for the fraction in nanoseconds."""
-        list_fraction = []
-        acc = dec.Decimal()
-        d_fraction = fraction * 1E-9
-        for i in range(24):
-            temp = acc + dec.Decimal(2 ** (- (i + 1)))
-            if temp > d_fraction:
-                list_fraction.append('0')
-            else:
-                list_fraction.append('1')
-                acc = temp
-        return cls.bin2nano(''.join(list_fraction))
-
-    def datetime(self) -> dt.datetime:
-        return dt.datetime.fromtimestamp(self.second_since_epoch) + \
-               dt.timedelta(microseconds=self.fraction_of_second / 1E3)
-
-    @classmethod
-    def unpack(cls, bytes_string: bytes) -> "Timestamp":
-        """Returns the timestamp unpacked from bytes."""
-        # IEC 61850 7-2
-        epoch_s = s_unpack('!L', bytes_string[:4])[0]
-        i_fraction = s_unpack('!L', b"\x00" + bytes_string[4:7])[0]
-        b_fraction = f'{i_fraction:024b}'
-        fraction_ns = cls.bin2nano(b_fraction)
-
-        quality = TimeQuality.unpack(bytes_string[7:])
-        return cls(second_since_epoch=epoch_s, fraction_of_second=fraction_ns, time_quality=quality)
-
-    def __bytes__(self) -> bytes:
-        epoch = s_pack('!L', self.second_since_epoch)
-        fraction = s_pack('!L', self.int2nano(self.fraction_of_second))
-        quality = bytes(self.time_quality)
-        return epoch + fraction + quality
-
-
-def new_datetime(quality: TimeQuality) -> bytes:
-    now = dec.Decimal(time_ns()) * dec.Decimal(1E-9)
+def new_datetime(quality: TimeQuality) -> Triplet:
+    now = dec.Decimal(time_ns()) * dec.Decimal(1e-9)
     epoch = int(now)
-    fraction = int((now % 1) * int(1E9))
-    return bytes(Timestamp(second_since_epoch=epoch, fraction_of_second=fraction, time_quality=quality))
+    fraction = int((now % 1) * int(1e9))
+    timestamp = Timestamp(
+        second_since_epoch=epoch, fraction_of_second=fraction, time_quality=quality
+    )
+    return Triplet(0x84, bytes(timestamp))
 
 
-def get_goose() -> "Iterator[bytes]":
-    dst_addr = b"\x01\x0c\xcd\x01\x00\x01"
-    src_addr = b"\x00\x30\xa7\x22\x9d\x01"
-    goose_ether = b"\x88\xb8"
-    app_id = b"\x00\x00"
-    length = b"\x00\x74"  # TODO calc?
-    reserved = b"\x00\x00\x00\x00"
-    goose_type = b"\x61"
-    goose_len = b"\x6a"  # TODO calc?
-    gocb_ref = b"\x80\x1bSEL_421_SubCFG/LLN0$GO$PIOC"
-    time_allowed_to_live = b"\x81\x02\x07\xd0"
-    dat_set = b"\x82\x18SEL_421_SubCFG/LLN0$PIOC"
-    go_id = b"\x83\x0bSEL_421_Sub"
+async def run(loop: "AbstractEventLoop") -> None:
+    b_dst_addr = mac2bytes("01:0c:cd:01:00:01")
+    b_src_addr = mac2bytes("00-30-a7-22-9d-01")
+    b_goose_ether = ether2bytes("88b8")
+    b_app_id = u32_bytes(0)
+    b_reserved = u32_bytes(0) + u32_bytes(0)
+    b_header = b_dst_addr + b_src_addr + b_goose_ether + b_app_id
 
-    data_bool = triplet(b"\x83", b"\x00")
-    data = triplet(b"\xab", data_bool)
-    num_dat_set_entries = triplet(b"\x8a", b"\x01")
+    b_num_dat_set_entries = bytes(Triplet(0x8A, b"\x01"))
 
-    nds_com = triplet(b"\x89", b"\x00")
-    conf_rev = triplet(b"\x88", b"\x01")
-    test = triplet(b"\x87", b"\x00")
+    b_nds_com = bytes(Triplet(0x89, b"\x00"))
+    b_conf_rev = bytes(Triplet(0x88, b"\x01"))
+    b_test = bytes(Triplet(0x87, b"\x00"))
 
-    sq_num = triplet(b"\x86", b"\x01")  # changes to 0
-    st_num = triplet(b"\x85", b"\x01")
-
-    quality = TimeQuality(leap_second_know=True, clock_failure=False, clock_not_sync=False, accuracy=18)
+    quality = TimeQuality(
+        leap_second_know=True, clock_failure=False, clock_not_sync=False, accuracy=18
+    )
     t = new_datetime(quality)
 
-    for index in range(10):
-        goose = dst_addr + src_addr + goose_ether + app_id + length + reserved + goose_type + goose_len + gocb_ref + time_allowed_to_live + dat_set + go_id + t + st_num + sq_num + test + conf_rev + nds_com + num_dat_set_entries + data
-        yield goose
+    b_go_id = bytes(Triplet(0x83, b"SEL_421_Sub"))
+    b_dat_set = bytes(Triplet(0x82, b"SEL_421_SubCFG/LLN0$PIOC"))
+    b_time_allowed_to_live = bytes(Triplet(0x81, u32_bytes(2000)))
 
+    b_gocb_ref = bytes(Triplet(0x80, b"SEL_421_SubCFG/LLN0$GO$PIOC"))
 
-async def run(loop: "AbstractEventLoop", send: bool) -> None:
+    trip = False
+    seq = 1
+    status = 1
+    sleeping_times = (0, 0.002, 0.004, 0.008, 1)
+
     with socket.socket(socket.AF_PACKET, socket.SOCK_RAW, 0xB888) as nic:
         nic.bind(("lo", 0))
         nic.setblocking(False)
 
-        if send:
-            for goose in get_goose():
-                await loop.sock_sendall(nic, goose)
-                await asyncio.sleep(.05)
-                print('sent...')
-        else:
-            for counter in count(1):
-                elapsed = loop.time()
-                data = await loop.sock_recv(nic, 1518)
-                print(f"{counter}: {(loop.time() - elapsed) * 1_000:.3f} ms | {data[:20]}")
+        for index in range(10):
+
+            if index == 4:
+                trip = True
+                t = new_datetime(quality)
+                status += 1
+                seq = 0
+
+            try:
+                wait_for = sleeping_times[seq]
+            except IndexError:
+                wait_for = 1
+
+            if index == 3:
+                wait_for = 0.104749
+
+            # TODO bool 0x0F not defined
+            data_bool = Triplet(0x83, b"\x0f" if trip else b"\x00")
+            data = Triplet(0xAB, bytes(data_bool))
+
+            sq_num = Triplet(0x86, s_pack("!B", seq))
+            st_num = Triplet(0x85, s_pack("!B", status))
+
+            b_goose_pdu = bytes(
+                Triplet(
+                    0x61,
+                    b_gocb_ref
+                    + b_time_allowed_to_live
+                    + b_dat_set
+                    + b_go_id
+                    + bytes(t)
+                    + bytes(st_num)
+                    + bytes(sq_num)
+                    + b_test
+                    + b_conf_rev
+                    + b_nds_com
+                    + b_num_dat_set_entries
+                    + bytes(data),
+                )
+            )
+            b_length = u32_bytes(len(b_goose_pdu) + 8)
+            goose = b_header + b_length + b_reserved + b_goose_pdu
+            # TODO loop.run_in_executor  para calcular proximo quadro?
+            await asyncio.gather(asyncio.sleep(wait_for), loop.sock_sendall(nic, goose))
+            seq += 1
+        print("done...")
 
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
+    main_loop = asyncio.new_event_loop()
     with suppress(KeyboardInterrupt):
-        loop.run_until_complete(run(loop, sys.argv[1] == "0"))
-    loop.close()
+        main_loop.run_until_complete(run(main_loop))
+    main_loop.close()
