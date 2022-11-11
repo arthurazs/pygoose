@@ -13,6 +13,26 @@ def mac2bytes(value: str) -> bytes:
     return bytes.fromhex(value.replace(":", "").replace("-", ""))
 
 
+def _bytes2hex(bytes_string: bytes) -> str:
+    return bytes_string.hex()
+
+
+def bytes2mac(bytes_string: bytes) -> str:
+    mac = _bytes2hex(bytes_string)
+    return ':'.join(mac[index:index+2] for index in range(0, len(mac), 2)).upper()
+
+
+def bytes2string(bytes_string: bytes) -> str:
+    return '0x' + _bytes2hex(bytes_string).upper()
+
+
+def bytes2u16(bytes_string: bytes) -> int:
+    return s_unpack('!H', bytes_string)[0]
+
+
+bytes2ether = bytes2string
+
+
 def ether2bytes(value: str) -> bytes:
     return bytes.fromhex(value)
 
@@ -42,6 +62,13 @@ class TimeQuality(NamedTuple):
         sync = "1" if self.clock_not_sync else "0"
         accuracy = f"{self.accuracy:05b}"
         return s_pack("!B", int(leap + failure + sync + accuracy, 2))
+
+    def __str__(self):
+        leap_sec = f"Leap second {'' if self.leap_second_know else 'un'}known"
+        failure = f"Clock {'failure' if self.clock_failure else 'ok'}"
+        sync = f"Clock{' not' if self.clock_not_sync else ''} synchronised"
+        acc = f"{self.accuracy} bits accuracy"
+        return f"{leap_sec}, {failure}, {sync}, {acc}"
 
 
 class Timestamp(NamedTuple):
