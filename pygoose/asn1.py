@@ -79,12 +79,36 @@ class Identifier(NamedTuple):
         i_identifier = s_unpack("!B", identifier)[0]
         return cls.from_int(i_identifier)
 
+    def __str__(self):
+        id_class = self.id_class.name.capitalize()
+        id_pc = self.id_pc.name.capitalize()
+        if self.id_class.value == 1:
+            id_type = f'Application {self.id_type.value}'
+        elif self.id_class.value == 2:
+            id_type = f'Position {self.id_type.value}'
+        else:
+            id_type = self.id_type.name.capitalize()
+        return f'{hex(self.to_int())} [{id_class}, {id_pc}, {id_type}]'
+
 
 class Triplet:
     def __init__(self, identifier: int, value: bytes) -> None:
         self.identifier = Identifier.from_int(identifier)
         self.length = len(value)
+        if self.length < 0x80:
+            self.extra_length = 0
+        elif 0x80 <= self.length <= 0xFF:
+            self.extra_length = 1
+        elif 0xFF < self.length <= 0xFFFF:
+            self.extra_length = 2
+        elif 0xFFFF < self.length <= 0xFFFFFF:
+            self.extra_length = 3
+        else:
+            raise ValueError('Value too big')
         self.value = value
+
+    def __len__(self) -> int:
+        return self.length + self.extra_length + 2
 
     def __bytes__(self) -> bytes:
         if self.length < 0x80:
@@ -107,9 +131,13 @@ class Triplet:
         raise ValueError("Value too big")
 
     @classmethod
+    def constructed_unpack(cls, triplet: "Triplet", padding: int = 0) -> tuple["Triplet", int]:
+        new_triplet = cls.unpack(triplet.value[padding:])
+        return new_triplet, padding + len(new_triplet)
+
+    @classmethod
     def unpack(cls, bytes_string: bytes) -> "Triplet":
-        i_identifier = s_unpack("!B", bytes_string[0:1])[0]
-        identifier = Identifier.unpack(i_identifier)
+        identifier = Identifier.unpack(bytes_string[0:1])
         length = s_unpack("!B", bytes_string[1:2])[0]
 
         index = 0
@@ -127,7 +155,10 @@ class Triplet:
 
         value = bytes_string[2 + index :]
 
-        if length != len(value):
+        if length > len(value):
             raise ValueError("Triplet missing data")
 
-        return cls(identifier=identifier.to_int(), value=value)
+        return cls(identifier=identifier.to_int(), value=value[:length])
+
+    def __str__(self):
+        return f'{self.identifier} [{self.length} bytes]:\n{self.value}'
