@@ -19,15 +19,15 @@ def _bytes2hex(bytes_string: bytes) -> str:
 
 def bytes2mac(bytes_string: bytes) -> str:
     mac = _bytes2hex(bytes_string)
-    return ':'.join(mac[index:index+2] for index in range(0, len(mac), 2)).upper()
+    return ":".join(mac[index : index + 2] for index in range(0, len(mac), 2)).upper()
 
 
 def bytes2string(bytes_string: bytes) -> str:
-    return '0x' + _bytes2hex(bytes_string).upper()
+    return "0x" + _bytes2hex(bytes_string).upper()
 
 
 def bytes2u16(bytes_string: bytes) -> int:
-    return s_unpack('!H', bytes_string)[0]
+    return s_unpack("!H", bytes_string)[0]
 
 
 bytes2ether = bytes2string

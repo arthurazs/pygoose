@@ -83,12 +83,12 @@ class Identifier(NamedTuple):
         id_class = self.id_class.name.capitalize()
         id_pc = self.id_pc.name.capitalize()
         if self.id_class.value == 1:
-            id_type = f'Application {self.id_type.value}'
+            id_type = f"Application {self.id_type.value}"
         elif self.id_class.value == 2:
-            id_type = f'Position {self.id_type.value}'
+            id_type = f"Position {self.id_type.value}"
         else:
             id_type = self.id_type.name.capitalize()
-        return f'{hex(self.to_int())} [{id_class}, {id_pc}, {id_type}]'
+        return f"{hex(self.to_int())} [{id_class}, {id_pc}, {id_type}]"
 
 
 class Triplet:
@@ -104,7 +104,7 @@ class Triplet:
         elif 0xFFFF < self.length <= 0xFFFFFF:
             self.extra_length = 3
         else:
-            raise ValueError('Value too big')
+            raise ValueError("Value too big")
         self.value = value
 
     def __len__(self) -> int:
@@ -131,7 +131,9 @@ class Triplet:
         raise ValueError("Value too big")
 
     @classmethod
-    def constructed_unpack(cls, triplet: "Triplet", padding: int = 0) -> tuple["Triplet", int]:
+    def constructed_unpack(
+        cls, triplet: "Triplet", padding: int = 0
+    ) -> tuple["Triplet", int]:
         new_triplet = cls.unpack(triplet.value[padding:])
         return new_triplet, padding + len(new_triplet)
 
@@ -161,4 +163,4 @@ class Triplet:
         return cls(identifier=identifier.to_int(), value=value[:length])
 
     def __str__(self):
-        return f'{self.identifier} [{self.length} bytes]:\n{self.value}'
+        return f"{self.identifier} [{self.length} bytes]:\n{self.value}"
