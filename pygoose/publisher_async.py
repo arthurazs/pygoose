@@ -6,6 +6,8 @@ from struct import pack as s_pack
 from time import time_ns
 from typing import TYPE_CHECKING
 
+from sys import argv
+
 from pygoose.asn1 import Triplet
 from pygoose.data_types import TimeQuality, Timestamp, ether2bytes, mac2bytes, u32_bytes
 
@@ -23,7 +25,7 @@ def new_datetime(quality: TimeQuality) -> Triplet:
     return Triplet(0x84, bytes(timestamp))
 
 
-async def run(loop: "AbstractEventLoop") -> None:
+async def run(loop: "AbstractEventLoop", interface: str) -> None:
     b_dst_addr = mac2bytes("01:0c:cd:01:00:01")
     b_src_addr = mac2bytes("00-30-a7-22-9d-01")
     b_goose_ether = ether2bytes("88b8")
@@ -54,7 +56,7 @@ async def run(loop: "AbstractEventLoop") -> None:
     sleeping_times = (0, 0.002, 0.004, 0.008, 1)
 
     with socket.socket(socket.AF_PACKET, socket.SOCK_RAW, 0xB888) as nic:
-        nic.bind(("lo", 0))
+        nic.bind((interface, 0))
         nic.setblocking(False)
 
         for index in range(10):
@@ -102,11 +104,10 @@ async def run(loop: "AbstractEventLoop") -> None:
             # TODO loop.run_in_executor  para calcular proximo quadro?
             await asyncio.gather(asyncio.sleep(wait_for), loop.sock_sendall(nic, goose))
             seq += 1
-        print("done...")
 
 
 if __name__ == "__main__":
     main_loop = asyncio.new_event_loop()
     with suppress(KeyboardInterrupt):
-        main_loop.run_until_complete(run(main_loop))
+        main_loop.run_until_complete(run(main_loop, argv[1]))
     main_loop.close()
