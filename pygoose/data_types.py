@@ -22,15 +22,19 @@ def bytes2mac(bytes_string: bytes) -> str:
     return ":".join(mac[index : index + 2] for index in range(0, len(mac), 2)).upper()
 
 
-def bytes2string(bytes_string: bytes) -> str:
+def bytes2hexstring(bytes_string: bytes) -> str:
     return "0x" + _bytes2hex(bytes_string).upper()
 
 
+def bytes2string(bytes_string: bytes) -> str:
+    return bytes_string.decode("utf8")
+
+
 def bytes2u16(bytes_string: bytes) -> int:
-    return s_unpack("!H", bytes_string)[0]
+    return s_unpack("!H", bytes_string)[0]  # type: ignore[no-any-return]
 
 
-bytes2ether = bytes2string
+bytes2ether = bytes2hexstring
 
 
 def ether2bytes(value: str) -> bytes:
@@ -63,12 +67,17 @@ class TimeQuality(NamedTuple):
         accuracy = f"{self.accuracy:05b}"
         return s_pack("!B", int(leap + failure + sync + accuracy, 2))
 
-    def __str__(self):
+    def __str__(self) -> str:
         leap_sec = f"Leap second {'' if self.leap_second_know else 'un'}known"
         failure = f"Clock {'failure' if self.clock_failure else 'ok'}"
         sync = f"Clock{' not' if self.clock_not_sync else ''} synchronised"
         acc = f"{self.accuracy} bits accuracy"
         return f"{leap_sec}, {failure}, {sync}, {acc}"
+
+
+DEFAULT_QUALITY = TimeQuality(
+    leap_second_know=True, clock_failure=False, clock_not_sync=False, accuracy=18
+)
 
 
 class Timestamp(NamedTuple):

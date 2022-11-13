@@ -3,24 +3,17 @@ from itertools import count
 from socket import AF_PACKET, SOCK_RAW, socket
 from sys import argv
 from time import time_ns
-from typing import TYPE_CHECKING
-
-from uvloop import new_event_loop
 
 from pygoose.goose import unpack_goose
 
-if TYPE_CHECKING:
-    from asyncio import AbstractEventLoop
 
-
-async def run(loop: "AbstractEventLoop", interface: str) -> None:
+def run(interface: str) -> None:
     with socket(AF_PACKET, SOCK_RAW, 0xB888) as nic:
         nic.bind((interface, 0))
-        nic.setblocking(False)
 
         for counter in count(1):
             elapsed: float = time_ns()
-            data = await loop.sock_recv(nic, 1518)
+            data = nic.recv(1518)
             (
                 mac_dest,
                 mac_src,
@@ -70,7 +63,5 @@ async def run(loop: "AbstractEventLoop", interface: str) -> None:
 
 
 if __name__ == "__main__":
-    main_loop = new_event_loop()
     with suppress(KeyboardInterrupt):
-        main_loop.run_until_complete(run(main_loop, argv[1]))
-    main_loop.close()
+        run(argv[1])

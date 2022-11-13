@@ -79,7 +79,7 @@ class Identifier(NamedTuple):
         i_identifier = s_unpack("!B", identifier)[0]
         return cls.from_int(i_identifier)
 
-    def __str__(self):
+    def __str__(self) -> str:
         id_class = self.id_class.name.capitalize()
         id_pc = self.id_pc.name.capitalize()
         if self.id_class.value == 1:
@@ -162,5 +162,5 @@ class Triplet:
 
         return cls(identifier=identifier.to_int(), value=value[:length])
 
-    def __str__(self):
-        return f"{self.identifier} [{self.length} bytes]:\n{self.value}"
+    def __str__(self) -> str:
+        return f"{self.identifier} [{self.length} bytes]:\n{self.value!r}"
