@@ -139,7 +139,7 @@ def unpack_goose(bytes_string: bytes) -> GOOSE:
     gocb_ref = bytes2string(t_gocb_ref.value)
 
     t_ttl, padding = Triplet.constructed_unpack(pdu, padding)
-    ttl = bytes2u16(t_ttl.value)
+    ttl = int.from_bytes(t_ttl.value, "big")  # TODO check size, use pack
 
     t_data_set, padding = Triplet.constructed_unpack(pdu, padding)
     data_set = bytes2string(t_data_set.value)
