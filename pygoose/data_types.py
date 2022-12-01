@@ -49,7 +49,7 @@ class TimeQuality(NamedTuple):
     accuracy: int  # TODO What's the relationship between fraction and accuracy
 
     @classmethod
-    def unpack(cls, bytes_string: bytes) -> "TimeQuality":
+    def unpack(cls: type["TimeQuality"], bytes_string: bytes) -> "TimeQuality":
         i_quality = s_unpack("!B", bytes_string)[0]
         b_quality = f"{i_quality:08b}"
 
@@ -60,14 +60,14 @@ class TimeQuality(NamedTuple):
             accuracy=int(b_quality[3:], 2),
         )
 
-    def __bytes__(self) -> bytes:
+    def __bytes__(self: "TimeQuality") -> bytes:
         leap = "1" if self.leap_second_know else "0"
         failure = "1" if self.clock_failure else "0"
         sync = "1" if self.clock_not_sync else "0"
         accuracy = f"{self.accuracy:05b}"
         return s_pack("!B", int(leap + failure + sync + accuracy, 2))
 
-    def __str__(self) -> str:
+    def __str__(self: "TimeQuality") -> str:
         leap_sec = f"Leap second {'' if self.leap_second_know else 'un'}known"
         failure = f"Clock {'failure' if self.clock_failure else 'ok'}"
         sync = f"Clock{' not' if self.clock_not_sync else ''} synchronised"
@@ -94,7 +94,7 @@ class Timestamp(NamedTuple):
         return int(acc * dec.Decimal(1e9))
 
     @classmethod
-    def int2nano(cls, fraction: int) -> int:
+    def int2nano(cls: type["Timestamp"], fraction: int) -> int:
         """Returns the parsed representation for the fraction in nanoseconds."""
         list_fraction = []
         acc = dec.Decimal()
@@ -108,13 +108,13 @@ class Timestamp(NamedTuple):
                 acc = temp
         return cls.bin2nano("".join(list_fraction))
 
-    def datetime(self) -> dt.datetime:
+    def datetime(self: "Timestamp") -> dt.datetime:
         return dt.datetime.fromtimestamp(self.second_since_epoch) + dt.timedelta(
             microseconds=self.fraction_of_second / 1e3
         )
 
     @classmethod
-    def unpack(cls, bytes_string: bytes) -> "Timestamp":
+    def unpack(cls: type["Timestamp"], bytes_string: bytes) -> "Timestamp":
         """Returns the timestamp unpacked from bytes."""
         # IEC 61850 7-2
         epoch_s = s_unpack("!L", bytes_string[:4])[0]
@@ -129,7 +129,7 @@ class Timestamp(NamedTuple):
             time_quality=quality,
         )
 
-    def __bytes__(self) -> bytes:
+    def __bytes__(self: "Timestamp") -> bytes:
         epoch = s_pack("!L", self.second_since_epoch)
         fraction = s_pack("!L", self.int2nano(self.fraction_of_second))[1:]
         quality = bytes(self.time_quality)

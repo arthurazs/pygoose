@@ -61,25 +61,25 @@ class Identifier(NamedTuple):
     id_pc: IdentifierPC
     id_type: IdentifierType
 
-    def __bytes__(self) -> bytes:
+    def __bytes__(self: "Identifier") -> bytes:
         return s_pack("!B", self.to_int())
 
-    def to_int(self) -> int:
+    def to_int(self: "Identifier") -> int:
         return (self.id_class << 6) + (self.id_pc << 5) + self.id_type
 
     @classmethod
-    def from_int(cls, identifier: int) -> "Identifier":
+    def from_int(cls: type["Identifier"], identifier: int) -> "Identifier":
         id_class = IdentifierClass(identifier >> 6)  # 0b1100_0000
         id_pc = IdentifierPC(identifier >> 5 & 0b1)  # 0b0010_0000
         id_type = IdentifierType(identifier & 0x1F)  # 0b0001_1111
         return cls(id_class=id_class, id_pc=id_pc, id_type=id_type)
 
     @classmethod
-    def unpack(cls, identifier: bytes) -> "Identifier":
+    def unpack(cls: type["Identifier"], identifier: bytes) -> "Identifier":
         i_identifier = s_unpack("!B", identifier)[0]
         return cls.from_int(i_identifier)
 
-    def __str__(self) -> str:
+    def __str__(self: "Identifier") -> str:
         id_class = self.id_class.name.capitalize()
         id_pc = self.id_pc.name.capitalize()
         if self.id_class.value == 1:
@@ -92,7 +92,7 @@ class Identifier(NamedTuple):
 
 
 class Triplet:
-    def __init__(self, identifier: int, value: bytes) -> None:
+    def __init__(self: "Triplet", identifier: int, value: bytes) -> None:
         self.identifier = Identifier.from_int(identifier)
         self.length = len(value)
         if self.length < 0x80:
@@ -107,10 +107,10 @@ class Triplet:
             raise ValueError("Value too big")
         self.value = value
 
-    def __len__(self) -> int:
+    def __len__(self: "Triplet") -> int:
         return self.length + self.extra_length + 2
 
-    def __bytes__(self) -> bytes:
+    def __bytes__(self: "Triplet") -> bytes:
         if self.length < 0x80:
             return bytes(self.identifier) + s_pack("!B", self.length) + self.value
         elif self.length <= 0xFF:
@@ -132,13 +132,13 @@ class Triplet:
 
     @classmethod
     def constructed_unpack(
-        cls, triplet: "Triplet", padding: int = 0
+        cls: type["Triplet"], triplet: "Triplet", padding: int = 0
     ) -> tuple["Triplet", int]:
         new_triplet = cls.unpack(triplet.value[padding:])
         return new_triplet, padding + len(new_triplet)
 
     @classmethod
-    def unpack(cls, bytes_string: bytes) -> "Triplet":
+    def unpack(cls: type["Triplet"], bytes_string: bytes) -> "Triplet":
         identifier = Identifier.unpack(bytes_string[0:1])
         length = s_unpack("!B", bytes_string[1:2])[0]
 
@@ -162,5 +162,5 @@ class Triplet:
 
         return cls(identifier=identifier.to_int(), value=value[:length])
 
-    def __str__(self) -> str:
+    def __str__(self: "Triplet") -> str:
         return f"{self.identifier} [{self.length} bytes]:\n{self.value!r}"

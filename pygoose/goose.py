@@ -42,7 +42,7 @@ def generate_goose(index_range: int) -> "Iterator[tuple[float, bytes]]":
     b_gocb_ref = bytes(Triplet(0x80, b"SEL_421_SubCFG/LLN0$GO$PIOC"))
 
     trip = False
-    seq = 1
+    seq = 1  # noqa
     status = 1
     sleeping_times = (0.0, 2 * 1e3, 4 * 1e3, 8 * 1e3, 1 * 1e6)
 
