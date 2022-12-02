@@ -47,12 +47,12 @@ def generate_goose(index_range: int) -> "Iterator[tuple[float, bytes]]":
     sleeping_times = (0.0, 2 * 1e3, 4 * 1e3, 8 * 1e3)
 
     for index in range(index_range):
-        if index == 2:
+        if index == 5:
             trip = True
             t = now()
             status += 1
             seq = 0
-        elif index == 6:
+        elif index == 9:
             trip = False
             t = now()
             status += 1
@@ -63,11 +63,11 @@ def generate_goose(index_range: int) -> "Iterator[tuple[float, bytes]]":
         except IndexError:
             wait_for = 1 * 1e6
 
-        if index == 1:
+        if index == 4:
             # trigger = 104_617
-            # time_spent_so_far = 2 * 1e3 = (0 + 2) * 1e3
-            wait_for = 104_617.0 - (2 * 1e3)
-        if index == 5:
+            # time_spent_so_far = 14 * 1e3 = (0 + 2 + 4 + 8) * 1e3
+            wait_for = 104_617.0 - (14 * 1e3)
+        if index == 8:
             wait_for = 075_441.0
 
         # TODO bool 0x0F not defined
