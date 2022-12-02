@@ -67,7 +67,7 @@ def generate_goose(index_range: int) -> "Iterator[tuple[float, bytes]]":
             # trigger = 104_617
             # time_spent_so_far = 14 * 1e3 = (0 + 2 + 4 + 8) * 1e3
             wait_for = 104_617.0 - (14 * 1e3)
-        if index == 8:
+        elif index == 8:
             wait_for = 075_441.0
 
         # TODO bool 0x0F not defined

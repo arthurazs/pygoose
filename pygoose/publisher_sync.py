@@ -16,8 +16,8 @@ def run(interface: str, sleep_until: int) -> None:
         usleep((sleep_until - time_ns()) * 1e-3)
 
         for wait_for, goose in generate_goose(12):
-            nic.sendall(goose)
             usleep(wait_for)
+            nic.sendall(goose)
 
 
 if __name__ == "__main__":
