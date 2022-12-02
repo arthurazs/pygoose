@@ -2,8 +2,9 @@ from asyncio import gather
 from contextlib import suppress
 from socket import AF_PACKET, SOCK_RAW, socket
 from sys import argv
-from typing import TYPE_CHECKING
 from time import time_ns
+from typing import TYPE_CHECKING
+
 from uvloop import new_event_loop
 
 from pygoose.goose import generate_goose
