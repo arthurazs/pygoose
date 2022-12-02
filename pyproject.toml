@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pygoose"
-version = "0.1.6"
+version = "0.1.7"
 description = ""
 authors = ["Arthur Zopellaro <arthurazsoares@gmail.com>"]
 readme = "README.md"
