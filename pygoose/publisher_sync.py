@@ -14,6 +14,7 @@ def run(interface: str, sleep_until: int) -> None:
 
         # convert 'ns delta' to 'us delta', then sleeps
         usleep((sleep_until - time_ns()) * 1e-3)
+        print(time_ns())
 
         for wait_for, goose in generate_goose(12):
             usleep(wait_for)
