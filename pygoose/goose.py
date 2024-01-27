@@ -2,7 +2,7 @@ from struct import pack as s_pack
 from typing import TYPE_CHECKING, NamedTuple
 
 from pygoose.asn1 import Triplet
-from pygoose.data_types import (
+from pygoose.datatypes import (
     Timestamp,
     bytes2ether,
     bytes2hexstring,
