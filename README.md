@@ -31,3 +31,9 @@ Remember to change `lo` to your interface name. Use the `ip -br a` command to se
 sudo .venv/bin/python pygoose/publisher_async.py lo 0
 # sudo .venv/bin/python -m pygoose -ap  # publish goose 
 ```
+
+## Roadmap
+
+- [x] TimeQuality
+- [ ] TimeStamp
+  - [x] FractionOfSecond

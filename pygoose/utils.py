@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from struct import pack
 
 from pygoose.asn1 import Triplet
-from pygoose.datatypes import Timestamp
+from pygoose.datatypes.time_stamp import Timestamp
 
 if TYPE_CHECKING:
     from pygoose.datatypes import TimeQuality
