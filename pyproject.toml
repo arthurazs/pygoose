@@ -31,7 +31,7 @@ select = [
     "PERF", "RUF",
 ]
 ignore = ["D203", "D213", "FA102"]
-# extend-ignore = ["D", "FIX002", "TD003"]
+ extend-ignore = ["D", "FIX002", "TD003"]
 line-length = 120
 
 [tool.mypy]

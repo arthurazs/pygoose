@@ -61,7 +61,7 @@ class FractionOfSeconds:
 class TimeStamp:
     # 61850-7-2, 2nd ed., 6.1.2.9
     second_since_epoch: int  # u32
-    fraction_bytes: bytes  # u24
+    fraction_of_second: dec.Decimal  # u24
     time_quality: "TimeQuality"
 
     def __post_init__(self: "TimeStamp") -> None:
@@ -69,27 +69,23 @@ class TimeStamp:
             raise NegativeEpochError
         if self.second_since_epoch > 0xFFFFFFFF:
             raise EpochTooBigError
-        if len(self.fraction_bytes) != 3:
-            raise FractionBadSizeError
+        if self.fraction_of_second < dec.Decimal(0):
+            msg = "negative"
+            raise FractionBadSizeError(msg)  # TODO @arthurazs: change for NegativeFractionError
+        if self.fraction_of_second >= dec.Decimal(1):
+            msg = "too big"
+            raise FractionBadSizeError(msg)  # TODO @arthurazs: change for FractionTooBigError
 
     @classmethod
     def default(
-            cls: type["TimeStamp"],
-            second_since_epoch: int = 0,
-            fraction_bytes: bytes = b"\x00\x00\x00",
-            time_quality: "TimeQuality | None" = None,
+        cls: type["TimeStamp"],
+        epoch: int = 0,
+        fraction: dec.Decimal = dec.Decimal(),
+        quality: "TimeQuality | None" = None,
     ) -> "TimeStamp":
-        if time_quality is None:
-            time_quality = TimeQuality.default()
-        return cls(second_since_epoch=second_since_epoch, fraction_bytes=fraction_bytes, time_quality=time_quality)
-
-    def fraction_of_second(self: "TimeStamp") -> dec.Decimal:
-        value = dec.Decimal(0)
-        integer = unpack("!L", b"\x00" + self.fraction_bytes)[0]
-        for i in range(24):
-            b = 1 if integer & (2 ** (23 - i)) > 0 else 0
-            value += dec.Decimal(b) * dec.Decimal(2 ** -(i + 1))
-        return value
+        if quality is None:
+            quality = TimeQuality.default()
+        return cls(second_since_epoch=epoch, fraction_of_second=fraction, time_quality=quality)
 
 
 class Timestamp(NamedTuple):
