@@ -2,8 +2,8 @@ from struct import pack as s_pack
 from typing import TYPE_CHECKING, NamedTuple
 
 from pygoose.asn1 import Triplet
-from pygoose.datatypes import (
-    Timestamp,
+from pygoose.datatypes import Timestamp
+from pygoose.utils import (
     bytes2ether,
     bytes2hexstring,
     bytes2mac,
@@ -11,9 +11,9 @@ from pygoose.datatypes import (
     bytes2u16,
     ether2bytes,
     mac2bytes,
+    now,
     u32_bytes,
 )
-from pygoose.utils import now
 
 if TYPE_CHECKING:
     from typing import Iterator
@@ -47,7 +47,6 @@ def generate_goose(index_range: int) -> "Iterator[tuple[float, bytes]]":
     sleeping_times = (0.0, 2 * 1e3, 4 * 1e3, 8 * 1e3)
 
     for index in range(index_range):
-
         try:
             wait_for = sleeping_times[seq - 1 if status == 1 else seq]
         except IndexError:

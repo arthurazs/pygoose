@@ -1,14 +1,11 @@
 import decimal as dec
 from asyncio import sleep
-from time import time_ns
-from typing import TYPE_CHECKING
 from struct import pack
+from struct import unpack as s_unpack
+from time import time_ns
 
 from pygoose.asn1 import Triplet
-from pygoose.datatypes.time_stamp import Timestamp
-
-if TYPE_CHECKING:
-    from pygoose.datatypes import TimeQuality
+from pygoose.datatypes import TimeQuality, Timestamp
 
 
 def u32_bytes(value: int) -> bytes:
@@ -47,12 +44,14 @@ def ether2bytes(value: str) -> bytes:
     return bytes.fromhex(value)
 
 
-def now(quality: "TimeQuality") -> Triplet:
+def now(quality: TimeQuality | None = None) -> Triplet:
+    if quality is None:
+        quality = TimeQuality.default()
     current_time = dec.Decimal(time_ns()) * dec.Decimal(1e-9)
     epoch = int(current_time)
     fraction = int((current_time % 1) * int(1e9))
     timestamp = Timestamp(
-        second_since_epoch=epoch, fraction_of_second=fraction, time_quality=quality
+        second_since_epoch=epoch, fraction_of_second=fraction, time_quality=quality,
     )
     return Triplet(0x84, bytes(timestamp))
 
